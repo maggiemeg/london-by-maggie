@@ -108,6 +108,14 @@ main{flex:1;min-height:0;display:flex;flex-direction:column}
 }
 .acts a.go{background:var(--navy);color:#fff}
 .acts button[aria-pressed="true"]{background:var(--nature);border-color:var(--nature);color:#fff}
+.warn{margin:6px 14px 0;padding:8px 10px;border-radius:6px;background:var(--surface);border-left:4px solid var(--roundel);font-size:13.5px}
+.mine{margin-top:11px;padding-top:10px;border-top:1px dashed var(--rule)}
+.stars{display:flex;gap:0;align-items:center}
+.stars span{font-size:13.5px;color:var(--muted);margin-right:8px;font-weight:600}
+.stars button{font-size:27px;line-height:1;padding:2px 3px;color:#B3BCCB;border-radius:4px}
+.stars button.on{color:#E8A500}
+.mine textarea{display:block;width:100%;margin-top:8px;padding:8px 10px;border-radius:7px;border:1.5px solid var(--rule);
+  background:var(--bg);color:var(--ink);font:inherit;font-size:15px;resize:vertical;min-height:58px}
 .empty{text-align:center;padding:36px 20px;color:var(--muted)}
 .empty button{margin-top:10px;padding:9px 16px;border-radius:999px;background:var(--navy);color:#fff;font-weight:700}
 
@@ -335,7 +343,8 @@ const SAMPLE_SPOTS = RAW.map(r=>makeSpot({name:r[0],hood:r[1],zone:r[2],region:r
 
 /* ---------- STATE ---------- */
 let SPOTS = [];
-const S = {region:"London",zone:"All",hood:"All",cat:"All",sub:"All",status:"all",q:"",near:false,user:null,sel:null,override:new Map()};
+const STORE="maggies-london-v1";
+const S = {my:{},region:"London",zone:"All",hood:"All",cat:"All",sub:"All",status:"all",q:"",near:false,user:null,sel:null,override:new Map()};
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const isVisited = s => S.override.has(s.key) ? S.override.get(s.key) : s.sheetVisited;
@@ -420,13 +429,21 @@ function renderFilters(){
   const cats=[...Object.keys(CAT).filter(c=>present.includes(c)),...present.filter(c=>!CAT[c])];
   $("cats").innerHTML=chip("cat","Everything","All",S.cat==="All")+
     cats.map(c=>chip("cat",c,c,S.cat===c,`<span class="dot" style="background:${cs(c).c}"></span>`)).join("");
-  if(S.cat!=="All"){
-    const subs=[...new Set(base.filter(s=>s.cats.includes(S.cat)).flatMap(s=>s.subs))].sort();
-    $("subs").style.display="flex";
-    $("subs").innerHTML=chip("sub","All types","All",S.sub==="All")+subs.map(x=>chip("sub",x,x,S.sub===x)).join("");
-  } else $("subs").style.display="none";
+  const pool=filtered({sub:"All",q:"",status:"all"});
+  const counts={};
+  pool.forEach(x=>x.subs.forEach(t=>{counts[t]=(counts[t]||0)+1;}));
+  const subs=Object.keys(counts).sort((x,y)=>counts[y]-counts[x]||x.localeCompare(y));
+  if(S.sub!=="All" && !counts[S.sub]) S.sub="All";
+  $("subs").style.display=subs.length?"flex":"none";
+  $("subs").innerHTML=chip("sub","All types","All",S.sub==="All")+subs.map(x=>chip("sub",`${x} (${counts[x]})`,x,S.sub===x)).join("");
   $("near").setAttribute("aria-pressed",S.near);
   $("status").textContent={all:"All",todo:"Not yet",done:"Visited"}[S.status];
+}
+function mineHtml(s){
+  const m=S.my[s.key]||{}, r=m.rating||0;
+  return `<div class="mine"><div class="stars" role="group" aria-label="Your rating for ${esc(s.name)}"><span>Your rating</span>`+
+    [1,2,3,4,5].map(n=>`<button class="${n<=r?"on":""}" data-rate="${s.id}:${n}" aria-label="${n} star${n>1?"s":""}" aria-pressed="${n===r}">★</button>`).join("")+
+    `</div><textarea data-note="${s.id}" placeholder="Add a note: what you got, who you went with, what to do next time" aria-label="Your note for ${esc(s.name)}">${esc(m.note||"")}</textarea></div>`;
 }
 function renderList(){
   const list=filtered();
@@ -454,6 +471,7 @@ function renderList(){
           <a class="go" href="${esc(dir)}" target="_blank" rel="noopener">Get directions</a>
           <button data-visit="${s.id}" aria-pressed="${v}">${v?"Visited":"Mark visited"}</button>
         </div>
+        ${v?mineHtml(s):""}
       </li>`;
     }).join("");
   }
@@ -506,11 +524,23 @@ document.addEventListener("click",e=>{
   const vb=e.target.closest("[data-visit]");
   if(vb){
     const s=SPOTS[+vb.dataset.visit];
-    S.override.set(s.key,!isVisited(s));
+    S.override.set(s.key,!isVisited(s)); saveMine();
+    const y=$("panel").scrollTop; refresh(false); $("panel").scrollTop=y; return;
+  }
+  const rt=e.target.closest("[data-rate]");
+  if(rt){
+    const [id,n]=rt.dataset.rate.split(":").map(Number), sp=SPOTS[id];
+    const m=S.my[sp.key]=S.my[sp.key]||{};
+    m.rating = m.rating===n ? 0 : n;
+    S.override.set(sp.key,true); saveMine();
     const y=$("panel").scrollTop; refresh(false); $("panel").scrollTop=y; return;
   }
   const card=e.target.closest(".card");
-  if(card && !e.target.closest("a,button")) select(+card.dataset.id,false,true);
+  if(card && !e.target.closest("a,button,textarea,.mine")) select(+card.dataset.id,false,true);
+});
+document.addEventListener("change",e=>{
+  const t=e.target.closest("[data-note]"); if(!t) return;
+  const sp=SPOTS[+t.dataset.note]; (S.my[sp.key]=S.my[sp.key]||{}).note=t.value.trim(); saveMine();
 });
 $("q").addEventListener("input",e=>{S.q=e.target.value;S.sel=null;refresh();});
 $("clear").onclick=clearFilters;
@@ -608,6 +638,21 @@ function offerCoordCopy(){
   showNote("Some pins were placed automatically, so they load slowly. Save their coordinates in your sheet to make them instant.",b);
 }
 
+function loadMine(){
+  try{ const d=JSON.parse(localStorage.getItem(STORE)||"{}"); (d.override||[]).forEach(([k,v])=>S.override.set(k,v)); S.my=d.my||{}; }catch(e){}
+}
+let storageOk=true;
+try{ localStorage.setItem(STORE+"-t","1"); localStorage.removeItem(STORE+"-t"); }catch(e){ storageOk=false; }
+function saveMine(){
+  if(!storageOk) return;
+  try{ localStorage.setItem(STORE,JSON.stringify({override:[...S.override],my:S.my})); }catch(e){}
+}
+loadMine();
+if(!storageOk){
+  const w=document.createElement("div"); w.className="warn";
+  w.textContent="This browser isn't allowing the app to save. Your visited spots, ratings and notes will reset when you close the page. Open the hosted link in Safari or Chrome (not Private mode, and not the file on your computer).";
+  $("note").before(w);
+}
 initMap();
 loadSheet();
 setTimeout(()=>{map.invalidateSize();fit();},300);
