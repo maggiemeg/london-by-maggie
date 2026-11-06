@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maggie's London</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=DM+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,700;9..144,800;9..144,900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F2EDE2; --surface:#FFFDF8; --ink:#1B2A22; --line:#1B2A22; --muted:#5B685F; --rule:#D8D0BE;
+  --forest:#1F5A32; --bubble:#F7B8D8; --hot:#FF6FAE; --sticky:#FFF1A8;
+  --hdr-bg:#F7B8D8; --hdr-ink:#1F5A32; --tagc:#8A2260;
+  --on-bg:#1F5A32; --on-ink:#FFFDF8; --link:#A32F73; --stamp:#1F5A32; --mapbg:#E4E0D4;
+  --display:"Fraunces","Recoleta",Georgia,"Times New Roman",serif;
+  --body:"DM Sans","Gill Sans","Trebuchet MS",system-ui,sans-serif;
+  --hand:"Caveat","Bradley Hand","Segoe Print","Comic Sans MS",cursive;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#13201A; --surface:#1D2D25; --ink:#F3EEE3; --line:#6E8F78; --muted:#A9B5AB; --rule:#33473B;
+    --hdr-bg:#1F5A32; --hdr-ink:#F7B8D8; --tagc:#F7B8D8;
+    --on-bg:#F7B8D8; --on-ink:#1B2A22; --link:#F7B8D8; --stamp:#8FE0A6; --mapbg:#1B2B23;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow-x:hidden}
+main,.panel,.app{min-width:0;width:100%}
+body{font-family:var(--body);background:var(--bg);color:var(--ink);font-size:16px;line-height:1.35;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+:focus-visible{outline:3px solid var(--hot);outline-offset:2px}
+.app{height:100dvh;display:flex;flex-direction:column;max-width:1200px;margin:0 auto}
+
+/* header */
+header{background:var(--hdr-bg);color:var(--hdr-ink);padding:8px 14px 12px;display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;flex-shrink:0;border-bottom:2px solid var(--line)}
+.hand{font-family:var(--hand);font-size:23px;line-height:1;color:var(--tagc);transform:rotate(-2deg);transform-origin:left;margin-bottom:-1px}
+header h1{font-family:var(--display);font-weight:900;font-size:clamp(30px,8vw,42px);line-height:.95;letter-spacing:-.8px}
+#count{font-size:13.5px;font-weight:700;margin-top:5px;color:var(--ink)}
+.region{margin-left:auto;display:flex;gap:6px}
+.region button{padding:6px 14px;border-radius:999px;border:2px solid var(--line);background:var(--surface);color:var(--ink);font-weight:700;font-size:14px}
+.region button[aria-pressed="true"]{background:var(--on-bg);color:var(--on-ink)}
+
+main{flex:1;min-height:0;display:flex;flex-direction:column}
+#map{height:42dvh;min-height:240px;background:var(--mapbg);flex-shrink:0;z-index:0;border-bottom:2px solid var(--line)}
+.panel{flex:1;min-height:0;overflow-y:auto;background:var(--bg);overscroll-behavior:contain}
+
+/* filters */
+.filters{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0 8px;border-bottom:1.5px solid var(--rule)}
+.row{display:flex;gap:7px;overflow-x:auto;padding:3px 14px;scrollbar-width:none}
+.row::-webkit-scrollbar{display:none}
+.row + .row{margin-top:3px}
+.chip{flex-shrink:0;padding:6px 13px;border-radius:999px;background:var(--surface);border:2px solid var(--line);color:var(--ink);
+  font-size:14px;font-weight:700;white-space:nowrap;display:flex;align-items:center;gap:7px}
+.chip svg{margin-left:-7px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.3))}
+.chip.cat{padding-left:9px}
+.chip[aria-pressed="true"]{background:var(--on-bg);border-color:var(--on-bg);color:var(--on-ink)}
+.chip.hood{border-radius:10px;font-weight:600}
+.chip.sub{font-weight:500;font-size:13px;padding:4px 10px;border-style:dashed}
+.chip.sub[aria-pressed="true"]{background:var(--hot);border:2px solid var(--line);color:#1B2A22;font-weight:700}
+
+.tools{display:flex;gap:8px;align-items:center;padding:9px 14px 2px}
+.tools input{flex:1;min-width:0;padding:8px 14px;border-radius:999px;border:2px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:15px}
+.tools button{padding:8px 14px;border-radius:999px;font-weight:700;font-size:14px;background:var(--surface);border:2px solid var(--line);white-space:nowrap}
+.tools button.primary{background:var(--hot);color:#1B2A22}
+.tools button[aria-pressed="true"]{background:var(--on-bg);color:var(--on-ink);border-color:var(--on-bg)}
+
+.meta{display:flex;flex-wrap:wrap;gap:6px;justify-content:space-between;align-items:center;padding:10px 14px 2px;color:var(--muted);font-size:13.5px}
+.meta button{color:var(--link);font-weight:700;font-size:13.5px}
+.sync{display:block;font-size:12.5px}
+#note{margin:8px 14px 0;padding:8px 12px;border-radius:6px;background:var(--sticky);color:#1B2A22;font-family:var(--hand);font-size:19px;line-height:1.1;transform:rotate(-.6deg);display:none}
+#note button{margin-left:6px;text-decoration:underline;font-weight:700;color:#8A2260;font-family:var(--body);font-size:14px}
+#note textarea{display:block;width:100%;margin-top:6px;font:inherit;font-size:12px;height:70px}
+.warn{margin:8px 14px 0;padding:8px 12px;border-radius:8px;background:var(--surface);border:2px solid var(--hot);font-size:13.5px}
+
+/* spot cards: like a travel ticket, sticker on the left */
+#list{list-style:none;padding:8px 14px calc(28px + env(safe-area-inset-bottom));display:grid;gap:14px}
+.card{display:grid;grid-template-columns:68px 1fr;gap:12px;background:var(--surface);border:2px solid var(--line);border-radius:18px;padding:14px 14px 14px 10px;position:relative}
+.card.sel{box-shadow:4px 4px 0 var(--hot)}
+.stkwrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding-right:8px;border-right:2px dashed var(--rule)}
+.stkwrap svg{filter:drop-shadow(0 2px 2px rgba(0,0,0,.3));transform:rotate(-7deg)}
+.stamp{font-family:var(--display);font-weight:800;font-size:12.5px;color:var(--stamp);border:2px solid var(--stamp);border-radius:6px;padding:0 6px;transform:rotate(-8deg);line-height:1.35}
+.top{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
+.name{font-family:var(--display);font-weight:800;font-size:19px;line-height:1.15;letter-spacing:-.2px}
+.where{color:var(--muted);font-size:14px;margin-top:2px;font-weight:500}
+.dist{flex-shrink:0;font-size:12.5px;font-weight:700;background:var(--bubble);color:#1B2A22;padding:3px 9px;border-radius:999px}
+.tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+.tag{font-size:12.5px;padding:2px 10px;border-radius:999px;font-weight:700;border:1.5px solid #1B2A22}
+.tag.plain{background:transparent;color:var(--ink);font-weight:500;border:1.5px solid var(--rule)}
+.note-txt{margin-top:10px;display:inline-block;background:var(--sticky);color:#1B2A22;font-family:var(--hand);font-size:19px;line-height:1.1;padding:5px 11px;transform:rotate(-1.2deg);box-shadow:1px 2px 0 rgba(0,0,0,.15)}
+.tube{margin-top:8px;font-size:13.5px;color:var(--muted)}
+.price{margin-left:8px;color:var(--muted);font-weight:600;font-family:var(--body);font-size:15px}
+.acts{display:flex;gap:8px;margin-top:12px}
+.acts a,.acts button{flex:1;text-align:center;text-decoration:none;padding:9px 10px;border-radius:999px;font-weight:700;font-size:14.5px;
+  border:2px solid var(--line);color:var(--ink);background:transparent;display:block}
+.acts a.go{background:var(--on-bg);border-color:var(--on-bg);color:var(--on-ink)}
+.acts button[aria-pressed="true"]{background:#CFEFD6;border-color:#2E8B4A;color:#124B27}
+.mine{margin-top:12px;padding-top:10px;border-top:2px dashed var(--rule)}
+.stars{display:flex;gap:0;align-items:center}
+.stars span{font-size:13.5px;color:var(--muted);margin-right:8px;font-weight:600}
+.stars button{font-size:27px;line-height:1;padding:2px 3px;color:#B9B3A3;border-radius:4px}
+.stars button.on{color:#F2A900}
+.mine textarea{display:block;width:100%;margin-top:8px;padding:8px 10px;border-radius:10px;border:2px solid var(--rule);background:var(--bg);color:var(--ink);font:inherit;font-size:15px;resize:vertical;min-height:58px}
+.about{display:flex;gap:12px;margin-top:12px;align-items:flex-start}
+.about:empty{display:none}
+.about img{width:96px;height:92px;flex-shrink:0;object-fit:cover;background:#fff;padding:4px 4px 12px;border:1px solid var(--rule);box-shadow:0 2px 5px rgba(0,0,0,.25);transform:rotate(-3deg);border-radius:2px}
+.abt p{font-size:14.5px;line-height:1.35}
+.abt a,.osm a{font-size:13px;color:var(--link);font-weight:700}
+.moreinfo{margin-top:11px;font-size:14px;font-weight:700;color:var(--link);text-decoration:underline;text-underline-offset:3px}
+.osm:empty{display:none}
+.osm{margin-top:8px;padding:10px 12px;border-radius:10px;background:var(--bg);font-size:14px;line-height:1.4}
+.osm ul{list-style:none;margin:4px 0 0}
+.osm li{padding:1px 0}
+.osm b{font-weight:700}
+.credits{padding:0 14px calc(28px + env(safe-area-inset-bottom));font-size:12.5px;color:var(--muted)}
+.credits a{color:var(--link)}
+.empty{text-align:center;padding:36px 20px;color:var(--muted)}
+.empty button{margin-top:10px;padding:9px 18px;border-radius:999px;background:var(--on-bg);color:var(--on-ink);font-weight:700}
+
+/* map stickers */
+.pin{background:none;border:0}
+.pin .stk{position:relative;width:40px;height:40px;transform:rotate(var(--r));filter:drop-shadow(0 2px 2px rgba(0,0,0,.4));transition:transform .15s}
+.pin .stk svg{display:block}
+.pin.sel .stk{transform:rotate(0deg) scale(1.4)}
+.pin .ck{position:absolute;right:-2px;bottom:-2px;width:15px;height:15px;border-radius:50%;background:#1F5A32;color:#fff;border:2px solid #fff;font-size:9px;font-style:normal;font-weight:700;display:grid;place-items:center}
+.me{width:16px;height:16px;border-radius:50%;background:#1E7CF2;border:3px solid #fff;box-shadow:0 0 0 6px rgba(30,124,242,.25)}
+
+@media (min-width:900px){
+  main{flex-direction:row-reverse}
+  #map{height:auto;flex:1;min-height:0;border-bottom:0;border-right:0;border-left:2px solid var(--line)}
+  .panel{flex:0 0 460px}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <div class="hand">where to next?</div>
+      <h1>Maggie's London</h1>
+      <p id="count"></p>
+    </div>
+    <div class="region" role="group" aria-label="Region">
+      <button data-region="London" aria-pressed="true">London</button>
+      <button data-region="Beyond" aria-pressed="false">Beyond</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="map" aria-label="Map of saved spots"></section>
+    <section class="panel" id="panel">
+      <div class="filters">
+        <div class="row" id="zones" aria-label="Area"></div>
+        <div class="row" id="hoods" aria-label="Neighbourhood"></div>
+        <div class="row" id="cats" aria-label="Category"></div>
+        <div class="row" id="subs" aria-label="Type"></div>
+        <div class="tools">
+          <input id="q" type="search" placeholder="Search spots" aria-label="Search spots">
+          <button id="near">Near me</button>
+          <button id="surprise" class="primary">Surprise me</button>
+        </div>
+      </div>
+      <div class="meta"><div><span id="shown"></span><span id="sync" class="sync"></span></div><span><button id="refresh">Refresh</button> <button id="status"></button> <button id="clear">Clear</button></span></div>
+      <div id="note" role="status"></div>
+      <ul id="list"></ul>
+      <p class="credits">Photos and descriptions come from <a href="https://www.wikipedia.org" target="_blank" rel="noopener">Wikipedia</a> (CC BY-SA). Hours and contact details come from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors.</p>
+    </section>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+/* =====================================================================
+   SETUP: paste your published Google Sheet CSV link between the quotes.
+   Sheet > File > Share > Publish to web > pick your spots tab > CSV > Publish.
+   Leave it empty to see the built-in sample spots.
+   ===================================================================== */
+const SNAPSHOT_DATE = "Nov 5, 2026";
+const SNAPSHOT_CSV = "Place Name,Location,Category,Subcategory,Google Map Link,Notes,Reccommended by,Visitied?\nThe Warehouse Project,Manchester,Nightlife,Live Music Venue,The Warehouse Project,,TikTok,\nLow Lights Tavern,Newcastle upon Tyne,Food/Drink,Pub,Low Lights Tavern,\"Sam Fender Local Pub, Has his Brit award\",TikTok,\nThe Cause,East London,Nightlife,Club / Dance Venue,The Cause,House/Dance Music,TikTok,\nThe Ship,Wandsworth,Food/Drink,\"Pub, Pub (Food-Focused), Viewpoint / Rooftop\",The Ship,,TikTok,\nAll My Friends,Hackney,Food/Drink,\"Cocktail Bar, Resturant (Casual)\",All My Friends,,TikTok,\nHackney Flea Market,Hackney,Shopping,Market (Flea/Street/Antique),Hackney Flea Market,,TikTok,\nCafe 1001,Brick Lane / Spitalfields,Food/Drink,Cafe/Coffee Shop,Cafe 1001,\"all-day menu, dj sets and live acts at night\",TikTok,\nThe Cock and Bottle,Notting Hill,Food/Drink,Pub,The Cock and Bottle,,TikTok,\nRoyal Trinity Hospice Portobello Road,Notting Hill,Shopping,Vintage / Thrift,Royal Trinity Hospice Portobello Road,,TikTok,\nLuxtyle,Notting Hill,Shopping,Boutique / Local Designer,Luxtyle,,TikTok,\nHighland Store,Notting Hill,Shopping,Boutique / Local Designer,Highland Store,,TikTok,\n91 Portobello Rd,Notting Hill,Shopping,Souvenirs / Gifts,91 Portobello Rd,\"watches, bags, souviners\",TikTok,\nNo. 13 Jewellery,Notting Hill,Shopping,Boutique / Local Designer,No. 13 Jewellery,,TikTok,\nThe Hirst Collection,Notting Hill,Shopping,Boutique / Local Designer,The Hirst Collection,unique jewlery ,TikTok,\nAppletree Boutique,Notting Hill,Shopping,Boutique / Local Designer,Appletree boutique,,TikTok,\nCheeky Scone,Notting Hill,Food/Drink,Bakery/Pastry,Cheeky Scone,,TikTok,\nPepper Tree,Notting Hill,Shopping,Vintage / Thrift,Pepper Tree London Notting Hill,,TikTok,\nCarnaby St,Marylebone,Sight,Neighborhood to Wander,Carnaby St,,TikTok,\nThe Queens,Camden,Food/Drink,\"Pub (Food-Focused), Pub\",The Queens,,TikTok,\nPrimrose Hill,Camden,Nature,Park / Garden,Primrose Hill,,TikTok,\nAmy Winehouse Statue,Camden,Sight,Landmark / Monument,Amy Winehouse Statue,,TikTok,\nCamden Market,Camden,Shopping,\"Food Market / Food Hall, Market (Flea/Street/Antique)\",Camden Market,,TikTok,\nThe Modfather Clothing Co Ltd,Camden,Shopping,Boutique / Local Designer,The Modfather Clothing Co Ltd,,TikTok,\nHarrods,Westminster,Shopping,\"Department Store / High Street, Afternoon Tea\",Harrods,,TikTok,\nThe White Swan,Soho,Food/Drink,Pub,The White Swan,,TikTok,\nTattersalls Tavern,Kensington,Food/Drink,Pub,Tattersalls Tavern,,TikTok,\nOld Queen Street Cafe,Westminster,Food/Drink,Brunch,Old Queen Street Cafe,,TikTok,\nJoules,Norwich,Shopping,Department Store / High Street,Joules,Cute wellies (rain boots),TikTok,\nEveryman Baker Street,Marylebone,Entertainment,Movie Theater,Everyman,,TikTok,\nWatchHouse Marble Arch,Marylebone,Food/Drink,Cafe/Coffee Shop,WatchHouse Marble Arch,,TikTok,\nAlexandra Palace Park,Muswell Hill,Nature,Park / Garden,Alexandra Park,,TikTok,\nAlexandra Palace Park,Muswell Hill,\"Entertainment, Nightlife\",\"Club / Dance Venue, Live Music Venue\",Alexandra Palace,,TikTok,\nBarbarican Centre,Golden Lane Estate,Entertainment,Theater / Show / Comedy Club,Barbican Centre,,TikTok,\nBattersea Park,Battersea,Nature,Park / Garden,Battersea Park,,TikTok,\nSt. James's Park,St. James's,Nature,Park / Garden,St James's Park,,TikTok,\nVictoria Park,Victoria,Nature,Park / Garden,Victoria Park,,TikTok,\nWimbledon Park,Wimbledon,Nature,Park / Garden,Wimbledon Park,,TikTok,\nBorough Market,Borough / Southwark,\"Food/Drink, Shopping\",Food Market / Food Hall,Borough Market,,TikTok,\nBroadway Market,Hackney,\"Food/Drink, Shopping\",Food Market / Food Hall,Broadway Market,,TikTok,\nGreenwich,Greenwich,\"Food/Drink, Shopping\",\"Food Market / Food Hall, Souvenirs / Gifts\",Greenwich Market,,TikTok,\nPortobello Road Market,Notting Hill,Shopping,Souvenirs / Gifts,Portobello Road Market,,TikTok,\nSmithfield Market,Golden Lane Estate,Food/Drink,Food Market / Food Hall,Smithfield Market,,TikTok,\nArsenal - Emirates Stadium,Highbury,Entertainment,Sports,Arsenal - Emirates Stadium,,TikTok,\nWembley Stadium,Wembley,Entertainment,\"Sports, Live Music Venue\",Wembley Stadium,,TikTok,\nThe London Palladium,Soho,Entertainment,Live Music Venue,The London Palladium,,TikTok,\nMarble Arch,Marylebone,Sight,Landmark / Monument,Marble Arch,,TikTok,\nSpeakers' Corner,Marylebone,Sight,Landmark / Monument,Speakers' Corner,,TikTok,\nHyde Park,Marylebone,Nature,Park / Garden,Hyde Park,,TikTok,\nHertford house,Marylebone,Sight,Landmark / Monument,Hertford House,,TikTok,\nJimi Hendrix Flat,Marylebone,Sight,Museum, Jimi Hendrix flat,,TikTok,\nCharlotte Street,Fitzrovia,Food/Drink,Resturant (Splurge),Charlotte St.,strip of resturants,TikTok,\nThe British Museum,Bloomsbury,Sight,Museum,The British Museum,,TikTok,\nKingsway Tram Tunnel,Bloomsbury,Sight,Historic Site / Castle, Kingsway Tram Tunnel,,TikTok,\nCharles Dickens Museum,Bloomsbury,Sight,Museum,Charles Dickens Museum,,TikTok,\nDoughty St,Bloomsbury,Sight,Neighborhood to Wander,Doughty St,georgian street in heart of literary land,TikTok,\nBunhill Fields,Barbican,Nature,Park / Garden,Bunhill Fields Burial Ground,,TikTok,\nSt Bartholomew the Great,Barbican,Sight,Religious Site / Cathedral,St Bartholomew the Great,,TikTok,\nLSO St. Lukes ,Barbican,Entertainment,Live Music Venue,LSO St Luke's,Home to London Symphony Orch,TikTok,\nSt Giles Cripplegate,Barbican,Sight,Religious Site / Cathedral,St Giles Cripplegate,,TikTok,\n50 Berkeley Square,Mayfair,Sight,Historic Site / Castle,50 Berkeley Square,most haunted house in london,TikTok,\nApsley House,Mayfair,Sight,\"Museum, Art Gallery\",Apsley House,,TikTok,\nBuckingham Palace,Westminster,Sight,\"Historic Site / Castle, Park / Garden\",Buckingham Palace,,TikTok,\nKingly Court,Soho,Food/Drink,Resturant (Casual),Kingly Court,,TikTok,\nWaxy O'Connor's,Soho,Food/Drink,Pub,Waxy O'Connor's,,TikTok,\nBerwick Street Market,Soho,Shopping,Market (Flea/Street/Antique),Berwick Street Market,,TikTok,\nDenmark St,Soho,Shopping,Market (Flea/Street/Antique),Denmark St,old guitar store,TikTok,\nThe Phoenix Garden,Soho,Nature,Park / Garden,The Phoenix Garden,,TikTok,\nSoho Square,Soho,Nature,Park / Garden,Soho Square Gardens,,TikTok,\nSt. Martin's Theater,Covent Garden,Entertainment,Theater / Show / Comedy Club,St. Martin's Theatre,Agatha Christie,TikTok,\nAldwych tube station,Holborn / Temple,Sight,Historic Site / Castle,Aldwych tube station,photobooth,TikTok,\nBush House,Holborn / Temple,Sight,Historic Site / Castle,Bush House,,TikTok,\nInner Temple Garden,Holborn / Temple,Nature,Park / Garden,Inner Temple Garden,,TikTok,\nLincoln's Inn Fields,Holborn / Temple,Nature,Park / Garden,Lincoln's Inn Fields,,TikTok,\nSir John Soane's Museum,Holborn / Temple,Sight,Museum,Sir John Soane's Museum,,TikTok,\nSomerset House,Holborn / Temple,Sight,Art Gallery,Somerset House,,TikTok,\nMillennium Bridge,Blackfriars / Farringdon,Sight,\"Neighborhood to Wander, Scenic Drive / Countryside\",Millennium Bridge,,TikTok,\nPostman's Park,Blackfriars / Farringdon,Nature,Park / Garden,Postman's Park,,TikTok,\nSt. Paul's Cathedral,City of London,Sight,Religious Site / Cathedral,St. Paul's Cathedral,,TikTok,\nOld Bank of England,Blackfriars / Farringdon,Food/Drink,Pub,Old Bank of England,,TikTok,\nSky Garden,City of London,\"Food/Drink, Sight\",Viewpoint / Rooftop,Sky Garden,,TikTok,\nColumbia Road Flower Market,Shoreditch,Shopping,Speciality Food / Grocery,Columbia Road Flower Market,,TikTok,\nThe National Gallery,Covent Garden,Sight,Art Gallery,The National Gallery,,TikTok,\nVictoria and Albert Museum,Kensington,Sight,Art Gallery,Victoria and Albert Museum,,TikTok,\nKenwood House,Hampstead,Sight,Historic Site / Castle,Kenwood House,,TikTok,\nChiswick House and Gardens,Chiswick,\"Sight, Nature\",\"Historic Site / Castle, Park / Garden\",Chiswick House and Gardens,,TikTok,\nBrick Lane Vintage,Shoreditch,Shopping,Vintage / Thrift,Brick Lane Vintage,,TikTok,\nParliament Hill Viewpoint,Hampstead,Nature,\"Park / Garden, Viewpoint / Rooftop\",Parliament Hill Viewpoint,,TikTok,\nSpitalfields Market,Brick Lane / Spitalfields,Shopping,Market (Flea/Street/Antique),Spitalfields Market,,TikTok,\nCamden Passage,Angel,Shopping,Department Store / High Street, Camden Passage,,TikTok,\nRegent's Canal,Angel,Nature,Lake / River / Waterway,Regent's Canal,,TikTok,\nLamb's Conduit St,Bloomsbury,Shopping,Market (Flea/Street/Antique),Lamb's Conduit St,,TikTok,\nThe British Museum,Soho,Sight,Museum,The British Museum,,TikTok,\nGinger & White,Hampstead,Food/Drink,Cafe/Coffee Shop,Ginger & White,,TikTok,\nKURO COFFEE,Kensington,Food/Drink,Cafe/Coffee Shop,KURO COFFEE,,TikTok,\nBoxcar Marylebone,Marylebone,Food/Drink,Cafe/Coffee Shop,Boxcar Marylebone,,,\nThe Wallace Collection,Marylebone,Sight,Art Gallery,The Wallace Collection,,,\nDaunt Books Marylebone,Marylebone,Shopping,Bookstore,Daunt Books Marylebone,,,\nThe Monocle Café,Marylebone,Food/Drink,Cafe/Coffee Shop,The Monocle Café,,,\nThe Devonshire,Marylebone,Food/Drink,Pub,The Devonshire,,,\nChiltern St,Marylebone,Sight,Neighborhood to Wander,Chiltern St,,,\nMarylebone Farmers' Market,Marylebone,Food/Drink,Street Food / Market Stall,Marylebone Farmers' Market,Sundays,,\nThe French Pharmacy,Marylebone,Shopping,Boutique / Local Designer,The French Pharmacy,,,\nCarlotta,Marylebone,Food/Drink,Resturant (Splurge),Carlotta,,,\nFlask Walk,Hampstead,Sight,Neighborhood to Wander,Flask Walk,,,\nHampstead Heath,Hampstead,Nature,Park / Garden,Hampstead Heath,,,\n";
+const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR2cd2Mco_nKPJkwxIwiHQIxesUT-TLO3-TfPPWPuTzZir3tLA4IrF4QcEViYDs8J6QNWu9RLw6EwZs/pub?gid=1957058326&single=true&output=csv";
+
+/* ---------- Sample spots, used when no sheet is connected (and as known coordinates by name) ----------
+   [name, neighbourhood, zone, region, category, [subcategories], note, lat, lng, nearest station] */
+const RAW = [
+ ["The Warehouse Project","Manchester","—","Beyond","Nightlife",["Live Music Venue"],"",53.4737,-2.2297,""],
+ ["Low Lights Tavern","Newcastle upon Tyne","—","Beyond","Food/Drink",["Pub"],"Sam Fender local pub, has his Brit award",55.0075,-1.4413,""],
+ ["The Cause","East London","East","London","Nightlife",["Club / Dance"],"House/Dance music",51.5883,-0.0589,"Tottenham Hale"],
+ ["The Ship","Wandsworth","South","London","Food/Drink",["Pub","Food","Viewpoint / River"],"",51.4620,-0.1885,"Wandsworth Town"],
+ ["All My Friends","Hackney","East","London","Food/Drink",["Cocktail Bar","Restaurant"],"",51.5460,-0.0556,""],
+ ["Hackney Flea Market","Hackney","East","London","Shopping",["Market","Flea"],"",51.5452,-0.0548,""],
+ ["Cafe 1001","Brick Lane / Spitalfields","East","London","Food/Drink",["Cafe/Coffee","Live Music"],"All-day menu, DJ sets and live acts at night",51.5214,-0.0715,"Shoreditch High Street"],
+ ["The Cock and Bottle","Notting Hill","West","London","Food/Drink",["Pub"],"",51.5143,-0.1988,"Notting Hill Gate"],
+ ["Royal Trinity Hospice Portobello Road","Notting Hill","West","London","Shopping",["Vintage / Thrift"],"",51.5145,-0.2050,"Notting Hill Gate"],
+ ["Luxtyle","Notting Hill","West","London","Shopping",["Boutique"],"",51.5155,-0.2048,"Ladbroke Grove"],
+ ["Highland Store","Notting Hill","West","London","Shopping",["Boutique"],"",51.5160,-0.2050,"Ladbroke Grove"],
+ ["91 Portobello Rd","Notting Hill","West","London","Shopping",["Souvenirs / Gifts"],"Watches, bags, souvenirs",51.5150,-0.2045,"Notting Hill Gate"],
+ ["No. 13 Jewellery","Notting Hill","West","London","Shopping",["Boutique"],"",51.5152,-0.2050,"Notting Hill Gate"],
+ ["The Hirst Collection","Notting Hill","West","London","Shopping",["Boutique"],"Unique jewelry",51.5148,-0.2052,"Notting Hill Gate"],
+ ["Appletree Boutique","Notting Hill","West","London","Shopping",["Boutique"],"",51.5170,-0.2055,"Ladbroke Grove"],
+ ["Cheeky Scone","Notting Hill","West","London","Food/Drink",["Bakery/Pastry"],"",51.5155,-0.2047,"Notting Hill Gate"],
+ ["Pepper Tree","Notting Hill","West","London","Shopping",["Vintage / Thrift"],"",51.5165,-0.2052,"Ladbroke Grove"],
+ ["Carnaby St","Soho","Central","London","Sight",["Neighbourhood / Street"],"",51.5133,-0.1393,"Oxford Circus"],
+ ["The Queens","Camden","North","London","Food/Drink",["Pub","Food"],"",51.5395,-0.1580,"Chalk Farm"],
+ ["Primrose Hill","Camden","North","London","Nature",["Park / Garden"],"",51.5393,-0.1608,"Chalk Farm"],
+ ["Amy Winehouse Statue","Camden","North","London","Sight",["Landmark"],"",51.5415,-0.1450,"Camden Town"],
+ ["Camden Market","Camden","North","London","Shopping",["Food Market","Flea"],"",51.5413,-0.1459,"Camden Town"],
+ ["The Modfather Clothing Co Ltd","Camden","North","London","Shopping",["Boutique"],"",51.5420,-0.1470,"Camden Town"],
+ ["Harrods","Westminster","Central","London","Shopping",["Department Store","Afternoon Tea"],"",51.4994,-0.1635,"Knightsbridge"],
+ ["The White Swan","Soho","Central","London","Food/Drink",["Pub"],"",51.5120,-0.1330,""],
+ ["Tattersalls Tavern","Kensington","West","London","Food/Drink",["Pub"],"",51.4977,-0.1584,""],
+ ["Old Queen Street Cafe","Westminster","Central","London","Food/Drink",["Brunch"],"",51.4996,-0.1337,"St James's Park"],
+ ["Joules","Norwich","—","Beyond","Shopping",["Department Store"],"Cute wellies (rain boots)",52.6290,1.2930,""],
+ ["Everyman Baker Street","Marylebone","Central","London","Entertainment",["Movie Theater"],"",51.5209,-0.1574,"Baker Street"],
+ ["WatchHouse Marble Arch","Marylebone","Central","London","Food/Drink",["Cafe/Coffee"],"",51.5139,-0.1580,"Marble Arch"],
+ ["Alexandra Palace Park","Muswell Hill","North","London","Nature",["Park / Garden"],"",51.5944,-0.1306,""],
+ ["Alexandra Palace","Muswell Hill","North","London","Entertainment",["Club / Dance","Live Music Venue"],"",51.5942,-0.1301,""],
+ ["Barbican Centre","Golden Lane Estate","Central","London","Entertainment",["Theater / Show"],"",51.5200,-0.0937,"Barbican"],
+ ["Battersea Park","Battersea","South","London","Nature",["Park / Garden"],"",51.4793,-0.1568,""],
+ ["St. James's Park","St. James's","Central","London","Nature",["Park / Garden"],"",51.5027,-0.1347,"St James's Park"],
+ ["Victoria Park","Victoria","Central","London","Nature",["Park / Garden"],"",51.5362,-0.0394,""],
+ ["Wimbledon Park","Wimbledon","South","London","Nature",["Park / Garden"],"",51.4340,-0.2020,"Wimbledon Park"],
+ ["Borough Market","Borough / Southwark","South","London","Food/Drink",["Food Market"],"",51.5055,-0.0910,"London Bridge"],
+ ["Broadway Market","Hackney","East","London","Food/Drink",["Food Market"],"",51.5330,-0.0614,""]
+];
+
+/* ---------- Where neighbourhoods sit. Add a Zone/Region column in the sheet to override. ---------- */
+const ZONE_KEYS = {
+  Central:["soho","westminster","marylebone","victoria","st. james","st james","golden lane","covent garden","mayfair","fitzrovia","holborn","bloomsbury","knightsbridge","south bank","city of london","barbican","leicester square","piccadilly","temple","blackfriars","farringdon"],
+  North:["camden","primrose hill","muswell hill","islington","highgate","hampstead","kentish town","king's cross","kings cross","angel","alexandra palace","finsbury park","crouch end","highbury","wembley"],
+  East:["hackney","shoreditch","brick lane","spitalfields","dalston","bethnal green","east london","stratford","canary wharf","whitechapel","bow","walthamstow","tottenham","london fields","hoxton","victoria park"],
+  South:["wandsworth","battersea","wimbledon","borough","southwark","brixton","greenwich","peckham","clapham","bermondsey","dulwich","tooting","vauxhall"],
+  West:["notting hill","kensington","chelsea","hammersmith","richmond","ealing","shepherd","chiswick","kew","holland park","fulham","portobello"]
+};
+const BEYOND_KEYS = ["manchester","newcastle","norwich","oxford","cambridge","brighton","bath","windsor","cardiff","edinburgh","liverpool","bristol","york","leeds","birmingham","canterbury","paris","dublin","amsterdam","seville","florence"];
+const ZONE_ORDER = ["Central","North","East","South","West","Other"];
+
+const INK="#1B2A22";
+const CAT = {
+  "Food/Drink":{c:"#FF8A3D",i:INK},
+  "Shopping":{c:"#FF6FAE",i:INK},
+  "Nature":{c:"#4DB36B",i:INK},
+  "Sight":{c:"#F7C62F",i:INK},
+  "Nightlife":{c:"#B0489E",i:"#fff"},
+  "Entertainment":{c:"#5FB3E8",i:INK}
+};
+const cs = cat => CAT[cat] || {c:"#9AA5B1",i:INK};
+
+/* ---------- Holographic glitter stickers ----------
+   Each sticker is a cut-out shape with a silver die-cut edge, rainbow-tinted colour and glitter dots. */
+const DEFS=`<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<pattern id="gl" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(20)">
+ <circle cx="2.2" cy="2.4" r="1.7" fill="#fff" fill-opacity=".7"/><circle cx="8.2" cy="1.8" r="1.1" fill="#fff" fill-opacity=".45"/>
+ <circle cx="5.5" cy="6.2" r="1.5" fill="#000" fill-opacity=".12"/><circle cx="10.2" cy="7.4" r="1.6" fill="#fff" fill-opacity=".6"/>
+ <circle cx="1.8" cy="9.8" r="1.2" fill="#ff6fd8" fill-opacity=".38"/><circle cx="6.8" cy="10.6" r="1" fill="#6fe7ff" fill-opacity=".42"/>
+</pattern>
+<linearGradient id="g-orange" gradientUnits="userSpaceOnUse" x1="6" y1="8" x2="40" y2="42"><stop offset="0" stop-color="#FFC48A"/><stop offset=".55" stop-color="#FF8A3D"/><stop offset="1" stop-color="#E4501F"/></linearGradient>
+<linearGradient id="g-pink" gradientUnits="userSpaceOnUse" x1="8" y1="14" x2="40" y2="42"><stop offset="0" stop-color="#FFB3DA"/><stop offset=".55" stop-color="#FF5FA8"/><stop offset="1" stop-color="#D81B7E"/></linearGradient>
+<linearGradient id="g-berry" gradientUnits="userSpaceOnUse" x1="14" y1="6" x2="34" y2="18"><stop offset="0" stop-color="#E23C93"/><stop offset="1" stop-color="#9A1062"/></linearGradient>
+<linearGradient id="g-green" gradientUnits="userSpaceOnUse" x1="10" y1="8" x2="38" y2="34"><stop offset="0" stop-color="#B9F29B"/><stop offset=".55" stop-color="#43B764"/><stop offset="1" stop-color="#1C8A41"/></linearGradient>
+<linearGradient id="g-stem" gradientUnits="userSpaceOnUse" x1="24" y1="22" x2="28" y2="42"><stop offset="0" stop-color="#2FA050"/><stop offset="1" stop-color="#17703A"/></linearGradient>
+<linearGradient id="g-gold" gradientUnits="userSpaceOnUse" x1="20" y1="6" x2="44" y2="28"><stop offset="0" stop-color="#FFF4A0"/><stop offset=".55" stop-color="#FFCB2E"/><stop offset="1" stop-color="#F59A00"/></linearGradient>
+<linearGradient id="g-tail" gradientUnits="userSpaceOnUse" x1="28" y1="20" x2="6" y2="42"><stop offset="0" stop-color="#FFB000"/><stop offset=".6" stop-color="#FF6FAE"/><stop offset="1" stop-color="#B58CFF"/></linearGradient>
+<linearGradient id="g-purple" gradientUnits="userSpaceOnUse" x1="8" y1="12" x2="34" y2="40"><stop offset="0" stop-color="#E3CCFF"/><stop offset=".5" stop-color="#9B5DE5"/><stop offset="1" stop-color="#5E2BB0"/></linearGradient>
+<linearGradient id="g-blue" gradientUnits="userSpaceOnUse" x1="8" y1="12" x2="40" y2="36"><stop offset="0" stop-color="#B4E6FF"/><stop offset=".55" stop-color="#4BA6EE"/><stop offset="1" stop-color="#2169CC"/></linearGradient>
+<linearGradient id="g-silver" gradientUnits="userSpaceOnUse" x1="6" y1="8" x2="40" y2="42"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".5" stop-color="#D5DBEC"/><stop offset="1" stop-color="#9AA5C4"/></linearGradient>
+<linearGradient id="g-coffee" gradientUnits="userSpaceOnUse" x1="10" y1="14" x2="32" y2="20"><stop offset="0" stop-color="#9A5A32"/><stop offset="1" stop-color="#53290F"/></linearGradient>
+</defs></svg>`;
+document.body.insertAdjacentHTML("afterbegin",DEFS);
+
+const LINE="rgba(70,15,80,.55)";
+const fillPart=(d,g,line)=>`<path d="${d}" fill="url(#${g})"/><path d="${d}" fill="url(#gl)" stroke="${line||LINE}" stroke-width="1.1" stroke-linejoin="round"/>`;
+const strokePart=(d,g,w)=>`<path d="${d}" fill="none" stroke="url(#${g})" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="url(#gl)" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+const dieCut=d=>`<path d="${d}" fill="#EEF0F8" stroke="#B9C1D6" stroke-width="7.6" stroke-linejoin="round" stroke-linecap="round"/><path d="${d}" fill="#fff" stroke="#fff" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>`;
+const plain=(d,c,w,o)=>`<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" ${o||""}/>`;
+
+const D = {
+  saucer:"M5 36.5a17 4 0 1 0 34 0a17 4 0 1 0-34 0Z",
+  cup:"M9.5 17H32.5V25C32.5 31.5 28 35.5 21 35.5C14 35.5 9.5 31.5 9.5 25Z",
+  handle:"M32.2 20.5H34.5A4.5 4.5 0 0 1 34.5 29.5H31",
+  coffee:"M10.5 17a10.5 2.8 0 1 0 21 0a10.5 2.8 0 1 0-21 0Z",
+  steam:"M15.5 11.5c-2.5-2 2.5-3.5 0-6M21.5 11.5c-2.5-2 2.5-3.5 0-6M27.5 11.5c-2.5-2 2.5-3.5 0-6",
+  cupHeart:"M21 31.5L16.7 27.2A2.6 2.6 0 0 1 21 24A2.6 2.6 0 0 1 25.3 27.2Z",
+  bag:"M10 17H38L39.5 38.5Q39.6 40.5 37.6 40.5H10.4Q8.4 40.5 8.5 38.5Z",
+  bagHandle:"M17.5 17V13.5A6.5 6.5 0 0 1 30.5 13.5V17",
+  bagHeart:"M24 36.5L16.6 29A4.5 4.5 0 0 1 24 24A4.5 4.5 0 0 1 31.4 29Z",
+  stem:"M24 22C24 29 22.5 35 28 41",
+  pinBody:"M24 42C24 42 11.5 31 11.5 21.5a12.5 12.5 0 0 1 25 0C36.5 31 24 42 24 42Z",
+  pinDot:"M20.5 21.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0Z",
+  tail1:"M27 21L8 39", tail2:"M22 16L6.5 26", tail3:"M31 27L19.5 41",
+  moon:"M34.1 31 L33.8 31.7 L33.5 32.4 L33.1 33 L32.7 33.6 L32.3 34.2 L31.9 34.8 L31.4 35.4 L30.9 35.9 L30.4 36.4 L29.8 36.9 L29.2 37.3 L28.6 37.7 L28 38.1 L27.4 38.5 L26.7 38.8 L26 39.1 L25.3 39.3 L24.6 39.5 L23.9 39.7 L23.2 39.8 L22.5 39.9 L21.7 40 L21 40 L20.3 40 L19.5 39.9 L18.8 39.8 L18.1 39.7 L17.4 39.5 L16.7 39.3 L16 39.1 L15.3 38.8 L14.6 38.5 L14 38.1 L13.4 37.7 L12.8 37.3 L12.2 36.9 L11.6 36.4 L11.1 35.9 L10.6 35.4 L10.1 34.8 L9.7 34.2 L9.3 33.6 L8.9 33 L8.5 32.4 L8.2 31.7 L7.9 31 L7.7 30.3 L7.5 29.6 L7.3 28.9 L7.2 28.2 L7.1 27.5 L7 26.7 L7 26 L7 25.3 L7.1 24.5 L7.2 23.8 L7.3 23.1 L7.5 22.4 L7.7 21.7 L7.9 21 L8.2 20.3 L8.5 19.6 L8.9 19 L9.3 18.4 L9.7 17.8 L10.1 17.2 L10.6 16.6 L11.1 16.1 L11.6 15.6 L12.2 15.1 L12.8 14.7 L13.4 14.3 L14 13.9 L14.6 13.5 L15.3 13.2 L16 12.9 L16.7 12.7 L17.4 12.5 L18.1 12.3 L18.8 12.2 L19.5 12.1 L20.3 12 L21 12 L20.9 12.4 L20.5 12.8 L20.1 13.3 L19.7 13.7 L19.4 14.2 L19 14.8 L18.8 15.3 L18.5 15.8 L18.3 16.4 L18.1 16.9 L17.9 17.5 L17.8 18.1 L17.6 18.7 L17.6 19.3 L17.5 19.9 L17.5 20.5 L17.5 21.1 L17.6 21.7 L17.6 22.3 L17.8 22.9 L17.9 23.5 L18.1 24.1 L18.3 24.6 L18.5 25.2 L18.8 25.7 L19 26.2 L19.4 26.8 L19.7 27.3 L20.1 27.7 L20.5 28.2 L20.9 28.6 L21.3 29 L21.8 29.4 L22.2 29.8 L22.7 30.1 L23.3 30.5 L23.8 30.7 L24.3 31 L24.9 31.2 L25.4 31.4 L26 31.6 L26.6 31.7 L27.2 31.9 L27.8 31.9 L28.4 32 L29 32 L29.6 32 L30.2 31.9 L30.8 31.9 L31.4 31.7 L32 31.6 L32.6 31.4 L33.1 31.2 L33.7 31 Z", moonStar:"M34.3 12 L35.2 15.7 L39 16.5 L35.7 18.6 L36.1 22.4 L33.2 20 L29.6 21.5 L31 17.9 L28.5 15 L32.3 15.3 Z", shoot:"M29.3 6.7 L33.4 12.8 L40.6 11.8 L36.1 17.5 L39.3 24 L32.5 21.5 L27.2 26.6 L27.5 19.3 L21.1 15.9 L28.1 13.9 Z", leaves:"M24 22 C17 18 16 11 20.5 10 C22.5 9.5 24 11 24 12.5 C24 11 25.5 9.5 27.5 10 C32 11 31 18 24 22 Z M24 22 C31 17.9 37.5 20.6 36.1 25 C35.6 27 33.5 27.5 32.2 26.8 C33.5 27.5 34.1 29.5 32.6 31 C29.5 34.4 24 30.1 24 22 Z M24 22 C24 30.1 18.5 34.4 15.4 31 C13.9 29.5 14.5 27.5 15.8 26.8 C14.5 27.5 12.4 27 11.9 25 C10.5 20.6 17 17.9 24 22 Z", veins:"M24 20.5 L24 13.5 M25.3 22.8 L31.4 26.2 M22.7 22.8 L16.6 26.3",
+  ticket:"M6.7 20.6 L6.6 19.6 L6.9 18.7 L7.6 18 L8.5 17.6 L34.7 11 L35.7 11 L36.6 11.3 L37.3 12 L37.7 12.9 L38.7 16.7 L37.7 17.2 L36.8 17.9 L36.3 18.8 L36 19.9 L36.1 21 L36.6 22 L37.3 22.8 L38.2 23.4 L39.3 23.6 L40.4 23.5 L41.3 27.4 L41.4 28.4 L41.1 29.3 L40.4 30 L39.5 30.4 L13.3 37 L12.3 37 L11.4 36.7 L10.7 36 L10.3 35.1 L9.3 31.3 L10.3 30.8 L11.2 30.1 L11.7 29.2 L12 28.1 L11.9 27 L11.4 26 L10.7 25.2 L9.8 24.6 L8.7 24.4 L7.6 24.5 Z", tstar:"M27.7 18.3 L29.6 20.8 L32.8 20.4 L30.9 22.9 L32.4 25.7 L29.4 24.8 L27.1 27.1 L27.1 23.9 L24.3 22.5 L27.2 21.4 Z", perf:"M15.7 17.6 L19.7 33.5", lines:"M21.5 20 L33.6 17 M23.6 28.7 L31.9 26.7", spark1:"M9 6.8 Q10.1 10.9 14.2 12 Q10.1 13.1 9 17.2 Q7.9 13.1 3.8 12 Q7.9 10.9 9 6.8 Z", spark2:"M40 33.2 Q40.8 36.2 43.8 37 Q40.8 37.8 40 40.8 Q39.2 37.8 36.2 37 Q39.2 36.2 40 33.2 Z"
+};
+const ART = {
+ "Food/Drink": ()=> dieCut(D.saucer+" "+D.cup+" "+D.handle+" "+D.steam)
+   + fillPart(D.saucer,"g-silver") + strokePart(D.steam,"g-silver",2.3) + strokePart(D.handle,"g-orange",3.2)
+   + fillPart(D.cup,"g-orange") + fillPart(D.coffee,"g-coffee") + fillPart(D.cupHeart,"g-silver","rgba(255,255,255,.0)"),
+ "Shopping": ()=> dieCut(D.bag+" "+D.bagHandle)
+   + strokePart(D.bagHandle,"g-berry",2.8) + fillPart(D.bag,"g-pink") + fillPart(D.bagHeart,"g-gold","rgba(120,60,0,.5)"),
+ "Nature": ()=> dieCut(D.leaves+" "+D.stem)
+   + strokePart(D.stem,"g-stem",3.2) + fillPart(D.leaves,"g-green","rgba(10,70,30,.6)") + plain(D.veins,"#fff",1.1,'stroke-opacity=".6"'),
+ "Sight": ()=> dieCut(D.shoot+" "+D.tail1+" "+D.tail2+" "+D.tail3)
+   + strokePart(D.tail1,"g-tail",4.2) + strokePart(D.tail2,"g-tail",2.8) + strokePart(D.tail3,"g-tail",2.8)
+   + fillPart(D.shoot,"g-gold","rgba(130,70,0,.6)") + fillPart(D.spark1,"g-silver","rgba(255,255,255,0)") + fillPart(D.spark2,"g-silver","rgba(255,255,255,0)"),
+ "Nightlife": ()=> dieCut(D.moon+" "+D.moonStar)
+   + fillPart(D.moon,"g-purple","rgba(40,10,100,.6)") + fillPart(D.moonStar,"g-gold","rgba(130,70,0,.6)"),
+ "Entertainment": ()=> dieCut(D.ticket)
+   + fillPart(D.ticket,"g-blue","rgba(10,40,110,.6)") + plain(D.perf,"#fff",1.4,'stroke-dasharray="2 2" stroke-opacity=".9"')
+   + plain(D.lines,"#fff",1.6,'stroke-opacity=".85"') + fillPart(D.tstar,"g-gold","rgba(130,70,0,.5)"),
+ "Other": ()=> dieCut(D.pinBody) + fillPart(D.pinBody,"g-silver","rgba(60,70,110,.5)") + fillPart(D.pinDot,"g-pink","rgba(120,10,70,.5)")
+};
+const STK_CACHE={};
+function sticker(cat,size){
+  const k=cat+"|"+size;
+  if(STK_CACHE[k]) return STK_CACHE[k];
+  const art=(ART[cat]||ART.Other)();
+  return STK_CACHE[k]=`<svg width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true" focusable="false">${art}</svg>`;
+}
+
+/* ---------- CSV ---------- */
+function parseCSV(t){
+  const rows=[];let row=[],f="",q=false;
+  for(let i=0;i<t.length;i++){
+    const c=t[i];
+    if(q){ if(c=='"'){ if(t[i+1]=='"'){f+='"';i++;} else q=false; } else f+=c; }
+    else if(c=='"') q=true;
+    else if(c==','){row.push(f);f="";}
+    else if(c=='\n'||c=='\r'){ if(c=='\r'&&t[i+1]=='\n') i++; row.push(f);rows.push(row);row=[];f=""; }
+    else f+=c;
+  }
+  if(f!==""||row.length){row.push(f);rows.push(row);}
+  return rows;
+}
+const ALIASES = {
+  name:["place name","name","place"], hood:["location","neighborhood","neighbourhood","area"],
+  cat:["category"], sub:["subcategory","sub-category","sub category","type"],
+  link:["google map link","google maps link","map link","link"], note:["notes","note"],
+  visited:["visited?","visitied?","visited","visit"], lat:["lat","latitude"], lng:["lng","lon","long","longitude"],
+  region:["region"], zone:["zone"], price:["price"], tube:["nearest station","station","tube"]
+};
+function sheetToSpots(table){
+  const head = table[0].map(h=>h.trim().toLowerCase());
+  const idx = {};
+  for(const k in ALIASES){ idx[k] = head.findIndex(h=>ALIASES[k].includes(h)); }
+  const get = (r,k)=> idx[k]>=0 ? (r[idx[k]]||"").trim() : "";
+  const out=[];
+  table.slice(1).forEach((r,n)=>{
+    const name=get(r,"name"); if(!name) return;
+    const hood=get(r,"hood"), link=get(r,"link");
+    let lat=parseFloat(get(r,"lat")), lng=parseFloat(get(r,"lng"));
+    if(isNaN(lat)||isNaN(lng)){ const m=link.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)||link.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/); lat=m?+m[1]:NaN; lng=m?+m[2]:NaN; }
+    out.push(makeSpot({name,hood,cats:get(r,"cat").split(/[,\n]/).map(x=>x.trim()).filter(Boolean),subs:get(r,"sub").split(/[,\n]/).map(s=>s.trim()).filter(Boolean),
+      note:get(r,"note"),link,lat,lng,region:get(r,"region"),zone:get(r,"zone"),price:get(r,"price"),tube:get(r,"tube"),
+      sheetVisited:/^(yes|y|true|visited|done|✓|x)/i.test(get(r,"visited")),src:n,fromSheet:true}));
+  });
+  return {spots:out,nData:table.length-1};
+}
+function makeSpot(o){
+  const h=(o.hood||"").toLowerCase();
+  let zone=o.zone, region=o.region;
+  if(!region){
+    const inLondon = Object.values(ZONE_KEYS).some(a=>a.some(k=>h.includes(k)));
+    region = inLondon ? "London" : (BEYOND_KEYS.some(k=>h.includes(k)) ? "Beyond" : "London");
+  }
+  region = /^lon/i.test(region) ? "London" : "Beyond";
+  if(region==="London" && !zone){
+    zone = Object.keys(ZONE_KEYS).find(z=>ZONE_KEYS[z].some(k=>h.includes(k))) || "Other";
+  }
+  if(region==="Beyond") zone="—";
+  const known = SAMPLE_BY_NAME[(o.link||"").trim().toLowerCase()] || SAMPLE_BY_NAME[o.name.trim().toLowerCase()];
+  let lat=o.lat, lng=o.lng, approx=false;
+  if((isNaN(lat)||isNaN(lng)) && known){ lat=known.lat; lng=known.lng; }
+  if(!o.tube && known) o.tube=known.tube;
+  return {name:o.name,hood:o.hood||"Unsorted",zone,region,cat:(o.cats&&o.cats[0])||o.cat||"Other",cats:(o.cats&&o.cats.length?o.cats:[o.cat||"Other"]),subs:o.subs||[],note:o.note||"",
+    lat:isNaN(lat)?null:lat,lng:isNaN(lng)?null:lng,tube:o.tube||"",link:o.link||"",price:o.price||"",
+    sheetVisited:!!o.sheetVisited,src:o.src,hadSheetCoords:o.fromSheet&&!isNaN(o.lat)&&!isNaN(o.lng),
+    key:(o.name+"|"+(o.hood||"")+"|"+((o.cats&&o.cats[0])||o.cat||"")).toLowerCase()};
+}
+
+/* Approximate coordinates for the rest of your current sheet, so pins appear instantly.
+   Add Lat/Lng columns to the sheet to make any of them exact. */
+const EXTRA_COORDS = {
+ "alexandra park":[51.5944,-0.1306],"barbarican centre":[51.5200,-0.0937],
+ "greenwich":[51.4821,-0.0091],"portobello road market":[51.5152,-0.2050],"smithfield market":[51.5201,-0.1015],
+ "arsenal - emirates stadium":[51.5549,-0.1084],"wembley stadium":[51.5560,-0.2796],"the london palladium":[51.5154,-0.1409],
+ "marble arch":[51.5131,-0.1589],"speakers' corner":[51.5132,-0.1604],"hyde park":[51.5073,-0.1657],
+ "hertford house":[51.5171,-0.1534],"jimi hendrix flat":[51.5105,-0.1480],"charlotte street":[51.5195,-0.1360],
+ "the british museum":[51.5194,-0.1270],"kingsway tram tunnel":[51.5175,-0.1195],"charles dickens museum":[51.5236,-0.1159],
+ "doughty st":[51.5242,-0.1167],"bunhill fields":[51.5230,-0.0910],"st bartholomew the great":[51.5183,-0.1009],
+ "lso st. lukes":[51.5252,-0.0917],"st giles cripplegate":[51.5200,-0.0935],"50 berkeley square":[51.5093,-0.1448],
+ "apsley house":[51.5030,-0.1511],"buckingham palace":[51.5014,-0.1419],"kingly court":[51.5126,-0.1390],
+ "waxy o'connor's":[51.5110,-0.1347],"berwick street market":[51.5134,-0.1353],"denmark st":[51.5156,-0.1286],
+ "the phoenix garden":[51.5158,-0.1273],"soho square":[51.5157,-0.1321],"st. martin's theater":[51.5113,-0.1281],
+ "aldwych tube station":[51.5130,-0.1189],"bush house":[51.5129,-0.1177],"inner temple garden":[51.5122,-0.1105],
+ "lincoln's inn fields":[51.5160,-0.1170],"sir john soane's museum":[51.5173,-0.1177],"somerset house":[51.5110,-0.1172],
+ "millennium bridge":[51.5095,-0.0985],"postman's park":[51.5164,-0.0975],"st. paul's cathedral":[51.5138,-0.0984],
+ "old bank of england":[51.5144,-0.1112],"sky garden":[51.5112,-0.0836],"columbia road flower market":[51.5294,-0.0706],
+ "the national gallery":[51.5089,-0.1283],"victoria and albert museum":[51.4966,-0.1722],"kenwood house":[51.5712,-0.1668],
+ "chiswick house and gardens":[51.4885,-0.2685],"brick lane vintage":[51.5200,-0.0715],"parliament hill viewpoint":[51.5597,-0.1500],
+ "spitalfields market":[51.5199,-0.0750],"camden passage":[51.5338,-0.1030],"regent's canal":[51.5365,-0.1090],
+ "lamb's conduit st":[51.5244,-0.1190],"ginger & white":[51.5565,-0.1775],"kuro coffee":[51.5008,-0.1925],
+ "boxcar marylebone":[51.5195,-0.1525],"the wallace collection":[51.5171,-0.1534],"daunt books marylebone":[51.5192,-0.1523],
+ "the monocle café":[51.5193,-0.1547],"the devonshire":[51.5200,-0.1500],"chiltern st":[51.5198,-0.1545],
+ "marylebone farmers' market":[51.5185,-0.1500],"the french pharmacy":[51.5195,-0.1520],"carlotta":[51.5190,-0.1530],
+ "flask walk":[51.5570,-0.1770],"hampstead heath":[51.5608,-0.1660]
+};
+const SAMPLE_BY_NAME = {};
+RAW.forEach(r=>{SAMPLE_BY_NAME[r[0].toLowerCase()]={lat:r[7],lng:r[8],tube:r[9]};});
+for(const k in EXTRA_COORDS){ if(!SAMPLE_BY_NAME[k]) SAMPLE_BY_NAME[k]={lat:EXTRA_COORDS[k][0],lng:EXTRA_COORDS[k][1],tube:""}; }
+const SAMPLE_SPOTS = RAW.map(r=>makeSpot({name:r[0],hood:r[1],zone:r[2],region:r[3],cat:r[4],subs:r[5],note:r[6],lat:r[7],lng:r[8],tube:r[9]}));
+
+/* ---------- STATE ---------- */
+let SPOTS = [];
+const STORE="maggies-london-v1";
+const S = {my:{},osmOpen:new Set(),region:"London",zone:"All",hood:"All",cat:"All",sub:"All",status:"all",q:"",near:false,user:null,sel:null,override:new Map()};
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const isVisited = s => S.override.has(s.key) ? S.override.get(s.key) : s.sheetVisited;
+
+/* ---------- MAP ---------- */
+let map, markers = {}, meMarker, tilesOk = false;
+function initMap(){
+  map = L.map("map").setView([51.515,-0.13],11);
+  const hosted = /^https?:/.test(location.protocol);
+  const carto = () => L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",{
+    maxZoom:19,subdomains:"abcd",attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; CARTO'
+  });
+  // OpenStreetMap's own servers refuse pages opened straight from a file, so use the same map data via CARTO there
+  if(!hosted){ carto().addTo(map); return; }
+  const osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{
+    maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+  let failed=0;
+  osm.on("tileload",()=>{tilesOk=true});
+  osm.on("tileerror",()=>{ if(tilesOk||++failed<3) return; map.removeLayer(osm); carto().addTo(map); });
+}
+function pinIcon(s){
+  const done=isVisited(s), rot=((s.id*37)%17)-8;
+  return L.divIcon({className:"pin"+(S.sel===s.id?" sel":""),
+    html:`<div class="stk" style="--r:${rot}deg">${sticker(s.cat,40)}${done?'<i class="ck">✓</i>':""}</div>`,
+    iconSize:[40,40],iconAnchor:[20,20]});
+}
+function addMarker(s){
+  if(s.lat==null) return;
+  if(markers[s.id]) map.removeLayer(markers[s.id]);
+  const m=L.marker([s.lat,s.lng],{icon:pinIcon(s),title:s.name,keyboard:true});
+  m.on("click",()=>select(s.id,true,false));
+  markers[s.id]=m;
+}
+
+/* ---------- FILTERING ---------- */
+const inRegion = s => S.region==="London" ? s.region==="London" : s.region!=="London";
+function filtered(extra={}){
+  const f={...S,...extra}, q=f.q.trim().toLowerCase();
+  const out=SPOTS.filter(s=>{
+    if(!inRegion(s)) return false;
+    if(S.region==="London" && f.zone!=="All" && s.zone!==f.zone) return false;
+    if(f.hood!=="All" && s.hood!==f.hood) return false;
+    if(f.cat!=="All" && !s.cats.includes(f.cat)) return false;
+    if(f.sub!=="All" && !s.subs.includes(f.sub)) return false;
+    const v=isVisited(s);
+    if(f.status==="todo" && v) return false;
+    if(f.status==="done" && !v) return false;
+    if(q && !(s.name+" "+s.hood+" "+s.note+" "+s.subs.join(" ")+" "+s.cats.join(" ")).toLowerCase().includes(q)) return false;
+    return true;
+  });
+  if(S.user){
+    out.forEach(s=>{s._d = s.lat==null?Infinity:dist(S.user,[s.lat,s.lng]);});
+    if(S.near) out.sort((a,b)=>a._d-b._d);
+  }
+  return out;
+}
+function dist(a,b){
+  const R=6371000,t=Math.PI/180,dLat=(b[0]-a[0])*t,dLng=(b[1]-a[1])*t;
+  const h=Math.sin(dLat/2)**2+Math.cos(a[0]*t)*Math.cos(b[0]*t)*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function distLabel(m){
+  if(!isFinite(m)) return "";
+  if(m>50000) return Math.round(m/1000)+" km";
+  const mins=Math.max(1,Math.round(m/80));
+  return mins<=45 ? mins+" min walk" : (m/1000).toFixed(1)+" km";
+}
+
+/* ---------- RENDER ---------- */
+function chip(kind,label,val,active,extra=""){
+  return `<button class="chip ${kind}" data-k="${kind}" data-v="${esc(val)}" aria-pressed="${active}">${extra}${esc(label)}</button>`;
+}
+function renderFilters(){
+  const base=SPOTS.filter(inRegion);
+  const zones=ZONE_ORDER.filter(z=>base.some(s=>s.zone===z));
+  $("zones").style.display=S.region==="London"?"flex":"none";
+  $("zones").innerHTML=chip("zone","All London","All",S.zone==="All")+zones.map(z=>chip("zone",z,z,S.zone===z)).join("");
+  const hoodSpots=base.filter(s=>S.region!=="London"||S.zone==="All"||s.zone===S.zone);
+  const hoods=[...new Set(hoodSpots.map(s=>s.hood))].sort();
+  $("hoods").innerHTML=chip("hood","All areas","All",S.hood==="All")+hoods.map(h=>chip("hood",h,h,S.hood===h)).join("");
+  const present=[...new Set(base.flatMap(s=>s.cats))];
+  const cats=[...Object.keys(CAT).filter(c=>present.includes(c)),...present.filter(c=>!CAT[c])];
+  $("cats").innerHTML=chip("cat","Everything","All",S.cat==="All")+
+    cats.map(c=>chip("cat",c,c,S.cat===c,sticker(c,28))).join("");
+  const pool=filtered({sub:"All",q:"",status:"all"});
+  const counts={};
+  pool.forEach(x=>x.subs.forEach(t=>{counts[t]=(counts[t]||0)+1;}));
+  const subs=Object.keys(counts).sort((x,y)=>counts[y]-counts[x]||x.localeCompare(y));
+  if(S.sub!=="All" && !counts[S.sub]) S.sub="All";
+  $("subs").style.display=subs.length?"flex":"none";
+  $("subs").innerHTML=chip("sub","All types","All",S.sub==="All")+subs.map(x=>chip("sub",`${x} (${counts[x]})`,x,S.sub===x)).join("");
+  $("near").setAttribute("aria-pressed",S.near);
+  $("status").textContent={all:"All",todo:"Not yet",done:"Visited"}[S.status];
+}
+function mineHtml(s){
+  const m=S.my[s.key]||{}, r=m.rating||0;
+  return `<div class="mine"><div class="stars" role="group" aria-label="Your rating for ${esc(s.name)}"><span>Your rating</span>`+
+    [1,2,3,4,5].map(n=>`<button class="${n<=r?"on":""}" data-rate="${s.id}:${n}" aria-label="${n} star${n>1?"s":""}" aria-pressed="${n===r}">★</button>`).join("")+
+    `</div><textarea data-note="${s.id}" placeholder="Add a note: what you got, who you went with, what to do next time" aria-label="Your note for ${esc(s.name)}">${esc(m.note||"")}</textarea></div>`;
+}
+function renderList(){
+  const list=filtered();
+  $("shown").textContent=`${list.length} of ${SPOTS.filter(inRegion).length} spots`;
+  const vis=SPOTS.filter(isVisited).length;
+  $("count").textContent=`${vis} visited · ${SPOTS.length-vis} still to go`;
+  if(!list.length){
+    $("list").innerHTML=`<li class="empty">Nothing matches those filters.<br><button id="clear2">Clear filters</button></li>`;
+    $("clear2").onclick=clearFilters;
+  } else {
+    $("list").innerHTML=list.map(s=>{
+      const v=isVisited(s), c=cs(s.cat);
+      const dir=/^https?:\/\//.test(s.link) ? s.link
+        : "https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(s.name+" "+(s.region==="London"?"London":s.hood));
+      return `<li class="card ${S.sel===s.id?"sel":""} ${v?"done":""}" id="spot-${s.id}" data-id="${s.id}">
+        <div class="stkwrap">${sticker(s.cat,58)}${v?'<span class="stamp">Visited</span>':""}</div>
+        <div class="body">
+          <div class="top">
+            <div><div class="name">${esc(s.name)}${s.price?`<span class="price">${esc(s.price)}</span>`:""}</div><div class="where">${esc(s.hood)}</div></div>
+            ${S.user&&isFinite(s._d)?`<span class="dist">${distLabel(s._d)}</span>`:""}
+          </div>
+          <div class="tags">${s.cats.map(x=>`<span class="tag" style="background:${cs(x).c};color:${cs(x).i}">${esc(x)}</span>`).join("")}${s.subs.map(x=>`<span class="tag plain">${esc(x)}</span>`).join("")}</div>
+          ${s.note?`<p class="note-txt">${esc(s.note)}</p>`:""}
+          ${s.tube?`<p class="tube">Nearest station: ${esc(s.tube)}</p>`:""}
+          ${s.lat==null?`<p class="tube">Finding this spot on the map…</p>`:""}
+          <div class="about" data-about="${s.id}">${aboutHtml(s)}</div>
+          <div class="acts">
+            <a class="go" href="${esc(dir)}" target="_blank" rel="noopener">Get directions</a>
+            <button data-visit="${s.id}" aria-pressed="${v}">${v?"Visited":"Mark visited"}</button>
+          </div>
+          <button class="moreinfo" data-osm="${s.id}" aria-expanded="${S.osmOpen.has(s.key)}">${S.osmOpen.has(s.key)?"Hide hours & contact":"Hours & contact"}</button>
+          <div class="osm" data-osmbox="${s.id}">${osmHtml(s)}</div>
+          ${v?mineHtml(s):""}
+        </div>
+      </li>`;
+    }).join("");
+  }
+  const ids=new Set(list.map(s=>s.id));
+  SPOTS.forEach(s=>{
+    const m=markers[s.id]; if(!m) return;
+    if(ids.has(s.id)){ m.setIcon(pinIcon(s)); if(!map.hasLayer(m)) m.addTo(map); m.setZIndexOffset(S.sel===s.id?1000:0); }
+    else if(map.hasLayer(m)) map.removeLayer(m);
+  });
+  observeCards();
+}
+function fit(){
+  const list=filtered().filter(s=>s.lat!=null);
+  if(!list.length) return;
+  if(list.length===1) return map.setView([list[0].lat,list[0].lng],15);
+  const pts=list.map(s=>[s.lat,s.lng]);
+  if(S.user) pts.push(S.user);
+  map.fitBounds(L.latLngBounds(pts).pad(0.15),{maxZoom:15});
+}
+function refresh(doFit=true){ renderFilters(); renderList(); if(doFit) fit(); }
+
+/* ---------- ACTIONS ---------- */
+function select(id,scroll,fly){
+  S.sel=id; const s=SPOTS[id]; renderList();
+  if(fly && s.lat!=null) map.flyTo([s.lat,s.lng],Math.max(map.getZoom(),14),{duration:.6});
+  if(scroll){ const el=$("spot-"+id); if(el) el.scrollIntoView({behavior:"smooth",block:"center"}); }
+}
+function clearFilters(){
+  Object.assign(S,{zone:"All",hood:"All",cat:"All",sub:"All",status:"all",q:"",near:false});
+  $("q").value=""; hideNote(); refresh();
+}
+function showNote(t,withEl){ const n=$("note"); n.textContent=t; if(withEl) n.appendChild(withEl); n.style.display="block"; }
+function hideNote(){ $("note").style.display="none"; }
+
+document.addEventListener("click",e=>{
+  const chipEl=e.target.closest(".chip");
+  if(chipEl){
+    const k=chipEl.dataset.k,v=chipEl.dataset.v;
+    if(k==="zone"){S.zone=v;S.hood="All";}
+    if(k==="hood") S.hood=v;
+    if(k==="cat"){S.cat=v;S.sub="All";}
+    if(k==="sub") S.sub=v;
+    S.sel=null; refresh(); return;
+  }
+  const rb=e.target.closest("[data-region]");
+  if(rb){
+    Object.assign(S,{region:rb.dataset.region,zone:"All",hood:"All",cat:"All",sub:"All",sel:null});
+    document.querySelectorAll("[data-region]").forEach(b=>b.setAttribute("aria-pressed",b===rb));
+    refresh(); return;
+  }
+  const vb=e.target.closest("[data-visit]");
+  if(vb){
+    const s=SPOTS[+vb.dataset.visit];
+    S.override.set(s.key,!isVisited(s)); saveMine();
+    const y=$("panel").scrollTop; refresh(false); $("panel").scrollTop=y; return;
+  }
+  const ob=e.target.closest("[data-osm]");
+  if(ob){
+    const sp=SPOTS[+ob.dataset.osm];
+    if(S.osmOpen.has(sp.key)) S.osmOpen.delete(sp.key);
+    else { S.osmOpen.add(sp.key); if(!OSM[sp.key]||OSM[sp.key].state==="error") fetchOsm(sp); }
+    updateCard(sp); return;
+  }
+  const rt=e.target.closest("[data-rate]");
+  if(rt){
+    const [id,n]=rt.dataset.rate.split(":").map(Number), sp=SPOTS[id];
+    const m=S.my[sp.key]=S.my[sp.key]||{};
+    m.rating = m.rating===n ? 0 : n;
+    S.override.set(sp.key,true); saveMine();
+    const y=$("panel").scrollTop; refresh(false); $("panel").scrollTop=y; return;
+  }
+  const card=e.target.closest(".card");
+  if(card && !e.target.closest("a,button,textarea,.mine")) select(+card.dataset.id,false,true);
+});
+document.addEventListener("change",e=>{
+  const t=e.target.closest("[data-note]"); if(!t) return;
+  const sp=SPOTS[+t.dataset.note]; (S.my[sp.key]=S.my[sp.key]||{}).note=t.value.trim(); saveMine();
+});
+$("q").addEventListener("input",e=>{S.q=e.target.value;S.sel=null;refresh();});
+$("clear").onclick=clearFilters;
+$("refresh").onclick=()=>loadSheet(true);
+$("status").onclick=()=>{S.status={all:"todo",todo:"done",done:"all"}[S.status];refresh();};
+$("surprise").onclick=()=>{
+  const pool=filtered({status:"todo"});
+  if(!pool.length) return showNote("You've visited everything that matches. Loosen a filter to find more.");
+  hideNote();
+  select(pool[Math.floor(Math.random()*pool.length)].id,true,true);
+};
+$("near").onclick=()=>{
+  if(S.near){S.near=false;refresh();return;}
+  if(!navigator.geolocation) return showNote("Location isn't available on this device. Pick an area instead.");
+  showNote("Finding you…");
+  navigator.geolocation.getCurrentPosition(p=>{
+    S.user=[p.coords.latitude,p.coords.longitude]; S.near=true; hideNote();
+    if(meMarker) map.removeLayer(meMarker);
+    meMarker=L.marker(S.user,{icon:L.divIcon({className:"",html:'<div class="me"></div>',iconSize:[16,16]}),interactive:false}).addTo(map);
+    refresh(false); map.setView(S.user,14);
+  },()=>showNote("Couldn't get your location. Check that location access is on for this page, or pick an area above."),{enableHighAccuracy:true,timeout:10000});
+};
+
+/* ---------- LOADING FROM THE SHEET ---------- */
+let gen=0, lastLoad=0, nData=0, fromSheet=false;
+function setSpots(list){
+  Object.values(markers).forEach(m=>map.removeLayer(m)); markers={};
+  SPOTS=list; SPOTS.forEach((s,i)=>{s.id=i; addMarker(s);});
+  S.sel=null;
+  if(S.cat!=="All" && !SPOTS.some(s=>s.cats.includes(S.cat))) S.cat="All";
+  refresh(true);
+}
+async function loadSheet(manual){
+  const my=++gen; hideNote();
+  if(!SHEET_CSV_URL){
+    fromSheet=false; const sn=sheetToSpots(parseCSV(SNAPSHOT_CSV)); setSpots(sn.spots);
+    $("sync").textContent="Showing a saved copy of your sheet.";
+    return;
+  }
+  $("sync").textContent="Syncing…";
+  try{
+    const res=await fetch(SHEET_CSV_URL+(SHEET_CSV_URL.includes("?")?"&":"?")+"_="+Date.now(),{cache:"no-store"});
+    if(!res.ok) throw new Error(res.status);
+    const parsed=sheetToSpots(parseCSV(await res.text()));
+    if(my!==gen) return;
+    if(!parsed.spots.length) throw new Error("empty");
+    nData=parsed.nData; fromSheet=true; lastLoad=Date.now();
+    setSpots(parsed.spots);
+    $("sync").textContent="Synced "+new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})+" · "+parsed.spots.length+" spots from your sheet";
+    geocodeMissing(my);
+  }catch(err){
+    if(my!==gen) return;
+    if(fromSheet){
+      $("sync").textContent="Couldn't refresh. Showing the last synced spots.";
+    } else {
+      const snap=sheetToSpots(parseCSV(SNAPSHOT_CSV));
+      setSpots(snap.spots);
+      $("sync").textContent="Showing a saved copy of your sheet from "+SNAPSHOT_DATE+" ("+snap.spots.length+" spots). Live updates need the page hosted online.";
+    }
+  }
+}
+
+/* Spots with no coordinates get looked up on OpenStreetMap, one per second */
+async function geocodeMissing(my){
+  const todo=SPOTS.filter(s=>s.lat==null);
+  let added=0;
+  for(const s of todo){
+    if(my!==gen) return;
+    const qs=[s.name+", "+s.hood+(s.region==="London"?", London":""), s.name+(s.region==="London"?", London":"")];
+    for(const q of qs){
+      try{
+        const r=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&q="+encodeURIComponent(q));
+        const j=await r.json();
+        if(j[0]){ s.lat=+j[0].lat; s.lng=+j[0].lon; added++; addMarker(s); renderList(); break; }
+      }catch(e){ break; }
+      await new Promise(r=>setTimeout(r,1100));
+    }
+    await new Promise(r=>setTimeout(r,1100));
+  }
+  if(my!==gen) return;
+  if(added || todo.length){ fit(); }
+  offerCoordCopy();
+}
+function offerCoordCopy(){
+  const needs=SPOTS.some(s=>s.lat!=null && !s.hadSheetCoords);
+  if(!needs || !fromSheet) return;
+  const lines=Array.from({length:nData},()=>"\t");
+  SPOTS.forEach(s=>{ if(s.lat!=null && s.src!=null) lines[s.src]=s.lat.toFixed(6)+"\t"+s.lng.toFixed(6); });
+  const text="Lat\tLng\n"+lines.join("\n");
+  const b=document.createElement("button"); b.textContent="Copy coordinates";
+  b.onclick=async()=>{
+    try{ await navigator.clipboard.writeText(text); b.textContent="Copied. Paste into new Lat and Lng columns."; }
+    catch(e){ const t=document.createElement("textarea"); t.value=text; $("note").appendChild(t); t.select(); }
+  };
+  showNote("Some pins were placed automatically, so they load slowly. Save their coordinates in your sheet to make them instant.",b);
+}
+
+/* ---------- Free place info: Wikipedia (photo + blurb) and OpenStreetMap (hours + contact) ---------- */
+const INFO_KEY="maggies-london-info-v1", TTL=30*864e5;
+let WIKI={}, OSM={};
+try{
+  const d=JSON.parse(localStorage.getItem(INFO_KEY)||"{}"), now=Date.now();
+  for(const k in d.wiki||{}) if(now-d.wiki[k].ts<TTL) WIKI[k]=d.wiki[k];
+  for(const k in d.osm||{}) if(now-d.osm[k].ts<TTL) OSM[k]=d.osm[k];
+}catch(e){}
+function saveInfo(){
+  try{
+    const keep=o=>Object.fromEntries(Object.entries(o).filter(([,v])=>v.state==="ok"||v.state==="none"));
+    localStorage.setItem(INFO_KEY,JSON.stringify({wiki:keep(WIKI),osm:keep(OSM)}));
+  }catch(e){}
+}
+const STOP=new Set(["the","of","and","a","an","in","at","london","st","saint"]);
+const norm=t=>String(t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/&/g," and ").replace(/[^a-z0-9 ]+/g," ").replace(/\s+/g," ").trim();
+const toks=t=>norm(t).split(" ").filter(w=>w&&!STOP.has(w));
+function nameMatch(a,b){
+  const A=new Set(toks(a)),B=new Set(toks(b));
+  if(!A.size||!B.size) return false;
+  let inter=0; A.forEach(w=>{ if(B.has(w)) inter++; });
+  const small=Math.min(A.size,B.size), big=Math.max(A.size,B.size);
+  if(small===1 && big>1) return false;           // one-word names must match exactly
+  return inter===small || inter/big>=0.6;
+}
+const queryName = s => (s.link && !/^https?:/.test(s.link) && s.link.trim()) ? s.link.trim() : s.name;
+function shorten(t,max){
+  t=(t||"").replace(/\s+/g," ").trim();
+  if(t.length<=max) return t;
+  const cut=t.slice(0,max), i=Math.max(cut.lastIndexOf(". "),cut.lastIndexOf("; "));
+  return i>80 ? cut.slice(0,i+1) : cut.replace(/\s+\S*$/,"")+"…";
+}
+async function wikiLookup(s){
+  const qn=queryName(s);
+  const tries=[qn+" "+(s.region==="London"?"London":s.hood), qn];
+  for(const q of tries){
+    const url="https://en.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrlimit=6&gsrsearch="+encodeURIComponent(q)
+      +"&prop=extracts|pageimages|coordinates&exintro=1&explaintext=1&exsentences=3&exlimit=max&piprop=thumbnail&pithumbsize=400&colimit=max";
+    const r=await fetch(url); if(!r.ok) throw new Error("wiki "+r.status);
+    const j=await r.json();
+    const pages=Object.values((j.query||{}).pages||{}).sort((a,b)=>a.index-b.index);
+    for(const pg of pages){
+      if(!pg.extract || /may (also )?refer to/i.test(pg.extract)) continue;
+      const t=pg.title.replace(/\(.*?\)/g,"").replace(/,.*$/,"").trim();
+      if(!(nameMatch(qn,t)||nameMatch(s.name,t))) continue;
+      const c=pg.coordinates&&pg.coordinates[0];
+      if(c && s.lat!=null){ if(dist([s.lat,s.lng],[c.lat,c.lon])>5000) continue; }
+      else if(!c){
+        const ex=pg.extract.toLowerCase(), h=s.hood.toLowerCase().split(" / ")[0];
+        if(!(ex.includes("london")||ex.includes(h))) continue;
+      }
+      return {title:pg.title,extract:shorten(pg.extract,260),thumb:pg.thumbnail?pg.thumbnail.source:"",
+              url:"https://en.wikipedia.org/wiki/"+encodeURIComponent(pg.title.replace(/ /g,"_"))};
+    }
+  }
+  return null;
+}
+const WQ=[], INFLIGHT=new Set(); let active=0;
+function queueWiki(s){ if(INFLIGHT.has(s.key)) return; INFLIGHT.add(s.key); WQ.push(s); pump(); }
+function pump(){
+  while(active<3 && WQ.length){
+    const s=WQ.shift(); active++;
+    wikiLookup(s)
+      .then(r=>{ WIKI[s.key]=r?{state:"ok",...r,ts:Date.now()}:{state:"none",ts:Date.now()}; saveInfo(); })
+      .catch(()=>{})
+      .finally(()=>{ INFLIGHT.delete(s.key); active--; updateCard(s); pump(); });
+  }
+}
+let io;
+function observeCards(){
+  if(io) io.disconnect();
+  if(!("IntersectionObserver" in window)) return;
+  io=new IntersectionObserver(es=>es.forEach(e=>{
+    if(!e.isIntersecting) return;
+    io.unobserve(e.target);
+    const s=SPOTS[+e.target.dataset.id];
+    if(s && !WIKI[s.key]) queueWiki(s);
+  }),{root:$("panel"),rootMargin:"300px"});
+  document.querySelectorAll(".card").forEach(c=>io.observe(c));
+}
+function aboutHtml(s){
+  const i=WIKI[s.key]; if(!i||i.state!=="ok") return "";
+  return (i.thumb?`<img src="${esc(i.thumb)}" alt="${esc(i.title)}" loading="lazy" referrerpolicy="no-referrer">`:"")+
+    `<div class="abt"><p>${esc(i.extract)}</p><a href="${esc(i.url)}" target="_blank" rel="noopener">Read more on Wikipedia</a></div>`;
+}
+/* Hours and contact come from OpenStreetMap, looked up only when you tap the button */
+async function osmLookup(s){
+  if(s.lat==null) return null;
+  const qn=queryName(s);
+  const main=toks(qn).sort((a,b)=>b.length-a.length)[0];
+  if(!main || main.length<3) return null;
+  const rx=main.replace(/[aeiou]/g,".").replace(/[^a-z0-9.]/g,"");
+  const q=`[out:json][timeout:12];nwr["name"~"${rx}",i](around:600,${s.lat},${s.lng});out tags center 10;`;
+  const r=await fetch("https://overpass-api.de/api/interpreter?data="+encodeURIComponent(q));
+  if(!r.ok) throw new Error("osm "+r.status);
+  const j=await r.json();
+  const hit=(j.elements||[]).find(e=>e.tags&&e.tags.name&&(nameMatch(qn,e.tags.name)||nameMatch(s.name,e.tags.name)));
+  if(!hit) return null;
+  const t=hit.tags, web=t.website||t["contact:website"]||"", ph=t.phone||t["contact:phone"]||"";
+  const out={hours:t.opening_hours||"",website:/^https?:\/\//.test(web)?web:"",phone:ph,cuisine:t.cuisine||"",
+             url:`https://www.openstreetmap.org/${hit.type}/${hit.id}`};
+  return (out.hours||out.website||out.phone||out.cuisine) ? out : null;
+}
+async function fetchOsm(s){
+  OSM[s.key]={state:"loading"}; updateCard(s);
+  try{
+    const r=await osmLookup(s);
+    OSM[s.key]=r?{state:"ok",...r,ts:Date.now()}:{state:"none",ts:Date.now()};
+    saveInfo();
+  }catch(e){ OSM[s.key]={state:"error"}; }
+  updateCard(s);
+}
+function prettyHours(h){
+  const m={Mo:"Mon",Tu:"Tue",We:"Wed",Th:"Thu",Fr:"Fri",Sa:"Sat",Su:"Sun",PH:"Holidays"};
+  return h.split(";").map(x=>x.trim().replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su|PH)\b/g,w=>m[w])).filter(Boolean);
+}
+function osmHtml(s){
+  if(!S.osmOpen.has(s.key)) return "";
+  const i=OSM[s.key];
+  if(!i||i.state==="loading") return "Looking up hours…";
+  if(i.state==="error") return "Couldn't reach OpenStreetMap right now. Close this and tap again to retry.";
+  if(i.state==="none") return "No hours or contact details are listed for this spot yet. Directions will still take you there.";
+  let h="<ul>";
+  if(i.hours) h+=`<li><b>Hours</b></li>`+prettyHours(i.hours).map(x=>`<li>${esc(x)}</li>`).join("");
+  if(i.cuisine) h+=`<li><b>Serves</b> ${esc(i.cuisine.replace(/[;_]/g,", "))}</li>`;
+  if(i.phone) h+=`<li><b>Phone</b> ${esc(i.phone)}</li>`;
+  if(i.website) h+=`<li><a href="${esc(i.website)}" target="_blank" rel="noopener">Website</a></li>`;
+  return h+`</ul><a href="${esc(i.url)}" target="_blank" rel="noopener">Source: OpenStreetMap</a>`;
+}
+function updateCard(s){
+  const c=$("spot-"+s.id); if(!c||SPOTS[s.id]!==s) return;
+  const a=c.querySelector("[data-about]"); if(a) a.innerHTML=aboutHtml(s);
+  const o=c.querySelector("[data-osmbox]"); if(o) o.innerHTML=osmHtml(s);
+  const b=c.querySelector("[data-osm]");
+  if(b){ const open=S.osmOpen.has(s.key); b.textContent=open?"Hide hours & contact":"Hours & contact"; b.setAttribute("aria-expanded",open); }
+}
+
+function loadMine(){
+  try{ const d=JSON.parse(localStorage.getItem(STORE)||"{}"); (d.override||[]).forEach(([k,v])=>S.override.set(k,v)); S.my=d.my||{}; }catch(e){}
+}
+let storageOk=true;
+try{ localStorage.setItem(STORE+"-t","1"); localStorage.removeItem(STORE+"-t"); }catch(e){ storageOk=false; }
+function saveMine(){
+  if(!storageOk) return;
+  try{ localStorage.setItem(STORE,JSON.stringify({override:[...S.override],my:S.my})); }catch(e){}
+}
+loadMine();
+if(!storageOk){
+  const w=document.createElement("div"); w.className="warn";
+  w.textContent="This browser isn't allowing the app to save. Your visited spots, ratings and notes will reset when you close the page. Open the hosted link in Safari or Chrome (not Private mode, and not the file on your computer).";
+  $("note").before(w);
+}
+initMap();
+loadSheet();
+setTimeout(()=>{map.invalidateSize();fit();},300);
+addEventListener("resize",()=>map.invalidateSize());
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible" && SHEET_CSV_URL && Date.now()-lastLoad>60000) loadSheet();
+});
+</script>
+</body>
+</html>
